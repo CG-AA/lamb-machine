@@ -24,8 +24,10 @@ BOOT_SIZE="1GiB"
 # The LUKS partition takes the remainder of the disk.
 
 # --- crypto --------------------------------------------------------------
-# Name of the opened dm-crypt mapper (/dev/mapper/$LUKS_NAME).
-LUKS_NAME="cryptroot"
+# Name of the opened dm-crypt mapper (/dev/mapper/$LUKS_NAME). Overridable from
+# the environment — the loopback test sets a unique name so it can never collide
+# with a *running* system's "cryptroot" mapper.
+LUKS_NAME="${LUKS_NAME:-cryptroot}"
 # `fresh` formats with current cryptsetup LUKS2 defaults (strong, modern).
 # Unlock is by interactive passphrase — no keyfile (crypttab: none).
 

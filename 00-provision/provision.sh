@@ -64,10 +64,6 @@ step_luks_format() {
 
 step_luks_open() {
   : "${LUKS_PART:?LUKS_PART not set}"
-  if [[ "$DRY_RUN" == "0" && -e "/dev/mapper/$LUKS_NAME" ]]; then
-    log "/dev/mapper/$LUKS_NAME already open — reusing"
-    return 0
-  fi
   log "Opening $LUKS_PART as /dev/mapper/$LUKS_NAME"
   if [[ -n "${LUKS_PASSPHRASE:-}" ]]; then
     printf '%s' "$LUKS_PASSPHRASE" | run cryptsetup open --key-file=- "$LUKS_PART" "$LUKS_NAME"
@@ -79,6 +75,7 @@ step_luks_open() {
 
 step_mkfs() {
   log "Creating filesystems (ESP vfat, /boot ext4, btrfs on $LUKS_NAME)"
+  [[ "$DRY_RUN" == "0" ]] && assert_mapper_backed_by "$LUKS_NAME" "$LUKS_PART"
   run mkfs.vfat -F32 "$(partdev "$DISK" 1)"
   run mkfs.ext4 -F "$(partdev "$DISK" 2)"
   run mkfs.btrfs -f "/dev/mapper/$LUKS_NAME"
@@ -157,6 +154,7 @@ delete_subvol_tree() {
 
 step_create_subvols() {
   local mode="${1:-fresh}"
+  [[ "$DRY_RUN" == "0" ]] && assert_mapper_backed_by "$LUKS_NAME" "$LUKS_PART"
   local top; top="$(mktemp -d /tmp/lamb-top.XXXXXX)"
   TOPMOUNT="$top"
   log "Managing subvolumes (mode: $mode) via top-level mount at $top"
@@ -247,6 +245,7 @@ guard_destructive() {
   [[ "$DRY_RUN" == "0" ]] || return 0
   require_root
   assert_disk_safe "$DISK"
+  assert_mapper_free
   confirm_device "$DISK"
 }
 
@@ -267,6 +266,7 @@ do_reinstall() {
   if [[ "$DRY_RUN" == "0" ]]; then
     require_root
     assert_disk_safe "$DISK"
+    assert_mapper_free
     LUKS_PART="$(find_luks_part "$DISK" || true)"
     [[ -n "$LUKS_PART" ]] || die "no crypto_LUKS partition found on $DISK"
     confirm_device "$DISK"

@@ -73,6 +73,23 @@ assert_disk_safe() {
   fi
 }
 
+# Abort unless /dev/mapper/$1 exists and is backed by partition $2. Last line of
+# defense against operating on the wrong (e.g. the running system's) mapper.
+assert_mapper_backed_by() {
+  local name="$1" want="$2" got
+  got="$(lsblk -nspo NAME "/dev/mapper/$name" 2>/dev/null | sed -n '2p')"
+  [[ -n "$want" && "$got" == "$want" ]] || \
+    die "SAFETY: /dev/mapper/$name is backed by '${got:-<nothing>}', expected '${want:-<unset>}' — refusing."
+}
+
+# Refuse if a mapper named $LUKS_NAME already exists (it may be the running
+# system's). Forces a unique LUKS_NAME or an explicit close before proceeding.
+assert_mapper_free() {
+  [[ -e "/dev/mapper/${LUKS_NAME:-}" ]] && \
+    die "/dev/mapper/$LUKS_NAME already exists — refusing (it may be the running system's mapper). Close it, or set LUKS_NAME to a unique value."
+  return 0
+}
+
 # Require the operator to type the device path (or supply CONFIRM_DEVICE for automation).
 confirm_device() {
   local disk="$1" answer

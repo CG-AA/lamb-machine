@@ -19,8 +19,9 @@ SIZE="${SIZE:-4G}"                     # sparse; only ~100 MB is actually writte
 export TARGET="${TARGET:-/mnt/lamb-loopback}"
 export OS_TAG="${OS_TAG:-testos}"
 export LUKS_PASSPHRASE="${LUKS_PASSPHRASE:-loopback-test-passphrase}"
-
-LUKS_NAME="cryptroot"   # matches layout.sh default
+# Unique mapper name, exported so provision.sh uses it — MUST NOT be the running
+# system's "cryptroot", or operations would target the live root device.
+export LUKS_NAME="${LUKS_NAME:-lamb_loopback_crypt}"
 LOOP=""
 
 pass() { printf '\033[32m  PASS\033[0m %s\n' "$*"; }

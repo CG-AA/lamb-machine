@@ -50,6 +50,9 @@ Single steps are available for inspection/manual use:
 - A real run **requires root**, **refuses** a disk that is mounted or that hosts the running system,
   and makes you **type the target device path** to confirm (or set `CONFIRM_DEVICE=<dev>` for
   automation).
+- **Refuses if `/dev/mapper/$LUKS_NAME` already exists** (it could be the running system's mapper),
+  and **asserts the mapper is backed by the target partition** before any `mkfs` or subvolume
+  delete — so a name collision can never redirect operations onto a live device.
 - `set -Eeuo pipefail` + a cleanup `trap`: a mid-run failure unwinds mounts and closes the LUKS
   mapper, so the disk is never left half-formatted with an open mapper. (Mounts are *kept* on
   success — the next step installs the OS onto them.)
@@ -71,6 +74,7 @@ sudo ./provision.sh fresh --yes       # execute; enter LUKS passphrase when prom
 |-----|---------|---------|
 | `DISK` | `/dev/nvme0n1` | target whole-disk device (also settable in `layout.sh`) |
 | `OS_TAG` | `main_ubt26` | versioned prefix for disposable OS subvolumes |
+| `LUKS_NAME` | `cryptroot` | dm-crypt mapper name; **must be unique vs. any running system's mapper** |
 | `TARGET` | `/mnt/target` | where the prepared tree is mounted |
 | `LAYOUT` | `./layout.sh` | path to an alternate layout file |
 | `LUKS_PASSPHRASE` | _unset_ | non-interactive LUKS passphrase (unattended installs / tests); if unset, cryptsetup prompts |
