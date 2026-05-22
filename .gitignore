@@ -1,0 +1,40 @@
+# --- secrets: never commit (relevant once dotfiles/desktop layers land) ---
+# private keys & key material
+*.key
+*.pem
+id_*
+!id_*.pub
+*_ed25519
+!*_ed25519.pub
+*_rsa
+!*_rsa.pub
+# ssh / gnupg / pki dirs if ever vendored in
+**/.ssh/**
+!**/.ssh/*.pub
+!**/.ssh/config
+**/.gnupg/**
+**/.pki/**
+# tool credentials / tokens / oauth
+**/.credentials.json
+**/oauth_creds.json
+**/*credentials*
+**/*token*
+.netrc
+.npmrc
+# AI tool state that is not config
+**/.claude.json
+**/history.jsonl
+**/*.history
+**/shell-snapshots/**
+**/sessions/**
+
+# --- live disk artifacts from local verification ---
+*.img
+*.img.*
+
+# --- editor / OS noise ---
+*.swp
+*~
+.DS_Store
+__pycache__/
+*.pyc
