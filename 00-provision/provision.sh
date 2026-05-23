@@ -232,7 +232,7 @@ step_gen_tab() {
 # ========================================================================
 
 finish_ok() {
-  trap - ERR INT TERM
+  trap - ERR INT TERM EXIT
   if [[ "$DRY_RUN" == "1" ]]; then
     log "dry-run complete — no changes made. Re-run with --yes to execute."
   else
@@ -303,7 +303,7 @@ main() {
     sgdisk wipefs partprobe udevadm cryptsetup mkfs.vfat mkfs.ext4 mkfs.btrfs \
     btrfs mount umount lsblk blkid findmnt mountpoint
 
-  trap cleanup_on_failure ERR INT TERM
+  trap cleanup_on_failure ERR INT TERM EXIT
   case "$cmd" in
     fresh)     do_fresh ;;
     reinstall) do_reinstall ;;

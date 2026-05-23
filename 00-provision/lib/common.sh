@@ -66,7 +66,9 @@ assert_disk_safe() {
   fi
   local root_src root_disk target_disk
   root_src="$(findmnt -nvo SOURCE / 2>/dev/null || true)"
-  root_disk="$(lsblk -nso NAME "$root_src" 2>/dev/null | tail -1 || true)"
+  # -r (raw) is essential: without it lsblk -s prefixes tree chars (└─) to names,
+  # so the comparison below would never match and the guard would silently pass.
+  root_disk="$(lsblk -nsro NAME "$root_src" 2>/dev/null | tail -1 || true)"
   target_disk="$(basename "$disk")"
   if [[ -n "$root_disk" && "$root_disk" == "$target_disk" ]]; then
     die "$disk hosts the running system (/) — refusing. Boot a live USB to provision it."
@@ -77,7 +79,8 @@ assert_disk_safe() {
 # defense against operating on the wrong (e.g. the running system's) mapper.
 assert_mapper_backed_by() {
   local name="$1" want="$2" got
-  got="$(lsblk -nspo NAME "/dev/mapper/$name" 2>/dev/null | sed -n '2p')"
+  # -r (raw) strips lsblk's tree-drawing chars; line 2 is the immediate parent.
+  got="$(lsblk -nsrpo NAME "/dev/mapper/$name" 2>/dev/null | sed -n '2p')"
   [[ -n "$want" && "$got" == "$want" ]] || \
     die "SAFETY: /dev/mapper/$name is backed by '${got:-<nothing>}', expected '${want:-<unset>}' — refusing."
 }
@@ -120,7 +123,10 @@ subvols_by_mount_depth() {
 # Mounts are intentionally LEFT in place on success (the next step installs the OS).
 cleanup_on_failure() {
   local rc=$?
-  trap - ERR INT TERM
+  trap - ERR INT TERM EXIT
+  # Trapped on EXIT too, so an explicit `die`/`exit` also unwinds (ERR alone misses those).
+  # A clean exit keeps the mounts in place for the next step.
+  [[ $rc -eq 0 ]] && exit 0
   warn "failure (exit $rc) — unwinding mounts/mapper to leave a clean state"
   if [[ -n "${TARGET:-}" ]] && mountpoint -q "$TARGET" 2>/dev/null; then
     umount -R "$TARGET" 2>/dev/null || warn "could not unmount $TARGET; do it manually"

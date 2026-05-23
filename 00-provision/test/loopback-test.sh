@@ -33,6 +33,12 @@ phase() { printf '\n\033[34m### %s\033[0m\n' "$*"; }
 # Simulate booting a fresh live USB: nothing of ours mounted/open.
 teardown_runtime() {
   if mountpoint -q "$TARGET" 2>/dev/null; then umount -R "$TARGET" || true; fi
+  # unmount anything else still backed by our mapper (e.g. a stray top-level mount)
+  local mp
+  while read -r mp; do
+    [[ -n "$mp" ]] || continue
+    umount -R "$mp" 2>/dev/null || true
+  done < <(findmnt -nro TARGET -S "/dev/mapper/$LUKS_NAME" 2>/dev/null)
   if [[ -e "/dev/mapper/$LUKS_NAME" ]]; then cryptsetup close "$LUKS_NAME" || true; fi
 }
 
