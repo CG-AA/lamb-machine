@@ -1,0 +1,62 @@
+# Egress firewall for the rootless Hermes container.
+# Rendered by deploy.sh (step_nftables) into /etc/nftables.d/40-hermes.nft and
+# pulled in by nftables.service. @@TOKEN@@ markers are substituted by deploy.sh.
+#
+# WHY THE output HOOK + skuid:  rootless Podman (slirp4netns/pasta) NATs the
+# container's traffic in userspace, so on the host it looks like locally-
+# generated traffic owned by the runtime user (uid @@HERMES_UID@@) and never
+# traverses the `forward` hook. So we filter `output` scoped to that uid; host
+# and co-resident traffic (other uids) is untouched (policy accept + early
+# return). Validate with the active metadata test in deploy.sh `verify`.
+
+# Idempotent reload: ensure-then-delete so re-applying never errors and never
+# touches any OTHER table on this shared host (we only own hermes_egress).
+table inet hermes_egress
+delete table inet hermes_egress
+
+table inet hermes_egress {
+    # Blocked egress destinations (nft rejects inline comments inside the
+    # element list, so they're described here):
+    #   169.254.0.0/16             link-local, incl. metadata (.169.254 handled below)
+    #   10/8, 172.16/12, 192.168/16  RFC1918 — covers the OCI VCN + neighbors
+    #   100.64.0.0/10              CGNAT / OCI internal services
+    # EXTRA_BLOCK_CIDRS (config.sh) are appended at @@BLOCKED_ELEMENTS@@.
+    set blocked_nets {
+        type ipv4_addr
+        flags interval
+        elements = { 169.254.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10@@BLOCKED_ELEMENTS@@ }
+    }
+
+    chain hermes_out {
+        type filter hook output priority 0; policy accept;
+
+        # Only police the rootless runtime user; everything else returns early.
+        meta skuid != @@HERMES_UID@@ return
+
+        # DNS first. On OCI the resolver IS the metadata IP (169.254.169.254),
+        # so :53 MUST be allowed before the metadata/loopback drops below.
+@@DNS_ALLOW_RULES@@
+
+        # Block the metadata HTTP endpoint (everything to it except :53 above).
+        # This is the headline rule: it stops instance-principal credential theft.
+        ip daddr 169.254.169.254 drop
+
+        # Block private/internal ranges (the VCN + neighbors) and the rest of
+        # link-local. reject (not drop) so the agent's attempts fail fast.
+        ip daddr @blocked_nets reject
+
+        # Loopback services (defense in depth; the container netns usually
+        # already isolates host loopback).
+        ip daddr 127.0.0.0/8 drop
+        ip6 daddr ::1/128 drop
+        ip6 daddr fc00::/7 drop
+        ip6 daddr fe80::/10 drop
+
+        # Allow outbound HTTPS (Discord gateway + LLM API both ride 443) + HTTP.
+        tcp dport 443 accept
+        tcp dport 80 accept
+
+        # Everything else from this uid is denied.
+        counter drop
+    }
+}

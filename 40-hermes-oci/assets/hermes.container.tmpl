@@ -1,0 +1,61 @@
+# Quadlet unit for Hermes — hardened rootless container.
+# Rendered by deploy.sh (step_write_quadlet) into
+#   ~hermes/.config/containers/systemd/hermes.container
+# then materialized to hermes.service by `systemctl --user daemon-reload`.
+# @@TOKEN@@ markers are substituted by deploy.sh from config.sh.
+
+[Unit]
+Description=Hermes agent (hardened rootless sandbox)
+After=network-online.target nftables.service
+Wants=network-online.target
+
+[Container]
+ContainerName=hermes
+Image=@@IMAGE@@
+Exec=@@RUN_CMD@@
+
+# --- the ONE data volume (config, .env, sessions DB, skills); NO docker socket ---
+Volume=@@DATA_DIR@@:/opt/data:rw
+
+# --- filesystem: immutable rootfs + ephemeral tmpfs scratch only ---
+ReadOnly=true
+Tmpfs=/tmp:rw,nosuid,nodev,size=512m
+Tmpfs=/run:rw,nosuid,nodev,size=64m
+Tmpfs=/workspace:rw,nosuid,nodev,size=1g
+# s6-overlay (PID 1 in the image) needs this to run on a read-only rootfs:
+# it copies /etc into a tmpfs instead of writing the real root.
+Environment=S6_READ_ONLY_ROOT=1
+
+# --- privileges: drop everything, gain nothing ---
+DropCapability=all
+NoNewPrivileges=true
+# No UserNS= line on purpose. Rootless Podman ALREADY maps the container's
+# users (incl. its internal root and UID 10000) into hermes's subuid range, so
+# a breakout lands as an unprivileged host UID owning nothing. UserNS=auto is
+# AVOIDED: it re-rolls the sub-range on each (re)creation and would orphan the
+# persistent /opt/data ownership across restarts.
+
+# --- resource caps so a runaway/agent-run command can't starve neighbors ---
+PidsLimit=@@PIDS_MAX@@
+
+# Podman's DEFAULT seccomp profile applies automatically (we never set
+# seccomp=unconfined). --memory-swap pinned to --memory disables swap escape.
+PodmanArgs=--memory=@@MEM_MAX@@ --memory-swap=@@MEM_MAX@@ --cpus=@@CPUS@@ --shm-size=@@SHM_SIZE@@ --pull=never
+
+# Secrets are NOT injected here — Hermes reads /opt/data/.env itself
+# (single secret pathway; the file lives in the data volume above).
+
+# Discord is OUTBOUND, so the bot needs NO published port. The next line is
+# rendered by deploy.sh: a loopback-only publish iff PUBLISH_API=1, else a
+# comment. Never bind the API to 0.0.0.0 on a shared/public VM.
+@@PUBLISH_PORT_LINE@@
+
+[Service]
+Restart=always
+RestartSec=5
+# crash-loop backoff so a wedged agent can't hammer Discord / the LLM API
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Install]
+WantedBy=default.target

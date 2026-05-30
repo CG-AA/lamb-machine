@@ -1,0 +1,21 @@
+# Hermes config — rendered by deploy.sh into ~hermes/.hermes/config.yaml
+# (= /opt/data/config.yaml in the container). @@TOKEN@@ markers are substituted
+# from config.sh. Secrets do NOT live here — they go in the sibling .env.
+
+model:
+  provider: "@@LLM_PROVIDER@@"
+@@MODEL_LINE@@
+@@BASE_URL_LINE@@
+
+# The command-execution backend. `local` = run inside THIS container, which is
+# the sandbox. Deliberately NO docker_image / container_* / ssh_* keys: the
+# `docker` backend would need a host socket (host-root-equivalent) and is a
+# non-goal here. deploy.sh asserts none of those keys leak back in.
+terminal:
+  backend: local
+  cwd: "."
+  timeout: 60
+  lifetime_seconds: 300
+
+discord:
+  require_mention: true

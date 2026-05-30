@@ -1,0 +1,26 @@
+# Regex patterns (ERE) that MUST appear in the rendered hermes.container.
+# One per line; blank lines and #-comments are skipped. If any pattern is
+# absent, _check_quadlet fails.
+
+# Container identity (rendered from template tokens)
+^Image=
+^Exec=
+^Volume=.*:/opt/data:rw$
+
+# Hardening — immutable rootfs + ephemeral scratch
+^ReadOnly=true$
+^Tmpfs=/tmp:
+^Tmpfs=/run:
+^Tmpfs=/workspace:
+
+# Hardening — caps + privilege
+^DropCapability=all$
+^NoNewPrivileges=true$
+
+# Hardening — resource limits
+^PidsLimit=
+--memory=
+--memory-swap=
+--cpus=
+--shm-size=
+--pull=never

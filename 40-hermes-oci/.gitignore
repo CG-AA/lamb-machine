@@ -1,0 +1,6 @@
+# Real secrets — NEVER commit.
+# NOTE: the repo-root .gitignore globs (*token*, *credentials*, *.key, ...) do
+# NOT match the filename "secrets.env", so this local ignore is REQUIRED, not
+# redundant. (secrets.env.example ends in .example, so it stays tracked.)
+secrets.env
+*.env

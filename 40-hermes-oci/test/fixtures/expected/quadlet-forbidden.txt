@@ -1,0 +1,23 @@
+# Regex patterns (ERE) that MUST NOT appear in the rendered hermes.container.
+# One per line; blank lines and #-comments are skipped. If any pattern matches,
+# _check_quadlet fails. These guard the hardening the README promises.
+
+# Privilege escapes
+--privileged
+^Privileged=true
+^AddCapability=
+^CapAdd=
+
+# Sandbox bypass
+seccomp=unconfined
+apparmor=unconfined
+
+# Container sockets — would make agent escape host-root-equivalent
+docker\.sock
+podman\.sock
+
+# Public binding — never publish on a shared/public VM
+PublishPort=[^#]*0\.0\.0\.0:
+
+# UserNS overrides — see template comment about why we don't set this
+^UserNS=
