@@ -62,7 +62,11 @@ write_target_file() {
     printf '  %s+%s write %s%s\n' "$C_DIM" "$C_RST" "$path" "${mode:+ (mode $mode)}" >&2
     mkdir -p "$(dirname "$path")"
     printf '%s\n' "$content" >"$path"
-    [[ -n "$mode" ]] && chmod "$mode" "$path"
+    # Use an `if` (not `[[ ]] && chmod`): when no mode is given this is the
+    # function's LAST command, and a short-circuited `&&` would return 1 —
+    # which `set -e`/`pipefail` at the call site turns into a spurious failure.
+    # A real chmod failure still propagates (it's in the `if` body).
+    if [[ -n "$mode" ]]; then chmod "$mode" "$path"; fi
   fi
 }
 

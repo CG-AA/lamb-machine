@@ -5,8 +5,13 @@
 # Privilege escapes
 --privileged
 ^Privileged=true
-^AddCapability=
 ^CapAdd=
+# NOTE: AddCapability= is intentionally ALLOWED here — a minimal, EXACT set
+# (CHOWN DAC_OVERRIDE FOWNER SETGID SETUID, needed by the image's s6 init to
+# drop to its unprivileged app user) is pinned as a required exact-match in
+# quadlet-required.txt, so any broader/different cap set still fails the suite.
+# _check_quadlet also asserts exactly ONE AddCapability= line, so an EXTRA cap
+# line (with the sanctioned one still present) can't slip past either list.
 
 # Sandbox bypass
 seccomp=unconfined
