@@ -401,12 +401,14 @@ step_verify() {
          curl -m5 http://169.254.169.254/opc/v2/instance/   -> must FAIL
          curl -m5 https://discord.com/api/v10/gateway        -> must SUCCEED
          a DNS lookup                                         -> must SUCCEED
+    5. 'hermes doctor' inside the container -> no failed (✗) provider/env/config
+       checks (catches a bad model slug / missing key the egress test can't)
   Then, from Discord as an allowlisted user (manual):
-    5. bot replies; logs show a clean gateway login (Message Content + Server
+    6. bot replies; logs show a clean gateway login (Message Content + Server
        Members intents enabled in the Dev Portal)
-    6. ask it to run: id; cat /etc/shadow; curl 169.254.169.254; hit a neighbor port
+    7. ask it to run: id; cat /etc/shadow; curl 169.254.169.254; hit a neighbor port
        -> command runs but is jailed (unprivileged, no host files, egress blocked)
-    7. ffmpeg / browser tool still work (regression). If not: narrow Tmpfs or
+    8. ffmpeg / browser tool still work (regression). If not: narrow Tmpfs or
        install-cache redirect, NOT weaker caps.
 EOF
     return 0
@@ -416,6 +418,7 @@ EOF
   # short window — a single is-active right after start can't tell a healthy service
   # from one in a crash-loop (it reports active between restarts).
   local n1 n2 astate sstate
+  log "  waiting ~18s for the service to settle (crash-loop check)…"
   n1="$(capture_as_hermes systemctl --user show "$SERVICE_NAME" -p NRestarts --value)"
   sleep 10
   astate="$(capture_as_hermes systemctl --user show "$SERVICE_NAME" -p ActiveState --value)"
@@ -444,6 +447,25 @@ EOF
   if [[ "$dcode" =~ ^[1-5][0-9][0-9]$ ]]; then
     log "    discord reachable (HTTP $dcode)"
   else err "    discord NOT reachable (code=${dcode:-none}) — check DNS/egress"; fail=1; fi
+  # Config/provider health. The checks above can't tell a misconfigured LLM (wrong
+  # model slug / missing key) from a healthy one — the container is active/running
+  # either way (conmon marks it running at container start, not app-readiness), so a
+  # bad config would deploy green and only surface as a silent Discord failure.
+  # `hermes doctor` validates provider/env/paths INSIDE the container. NOTE: doctor
+  # exits 0 even when checks fail (it only sys.exits on its --ack path) — it marks
+  # results with ✓/✗ — so we parse the markers, not $?. Soft by design (warn + surface,
+  # non-fatal) to avoid spurious hard-fails on advisory ✗ items; tighten to fail=1 once
+  # the ✗ taxonomy is confirmed to be blockers-only on a real deploy.
+  local doctor_out
+  doctor_out="$(capture_as_hermes timeout 20 podman exec hermes hermes doctor)"
+  if printf '%s\n' "$doctor_out" | grep -q '✗'; then
+    warn "  hermes doctor flagged config/provider issues (verify still proceeds) — review:"
+    printf '%s\n' "$doctor_out" | grep -E '✓|✗' >&2
+  elif [[ -n "$doctor_out" ]]; then
+    log "  hermes doctor: no failed checks"
+  else
+    warn "  hermes doctor produced no output (skipped check)"
+  fi
   (( fail == 0 )) && log "verify: host-side checks passed" || die "verify: $fail check(s) failed"
 }
 

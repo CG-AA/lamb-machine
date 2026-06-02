@@ -82,6 +82,13 @@ _check_quadlet() {
       err "quadlet contains forbidden pattern: $pat"; fail=1
     fi
   done < "$forb"
+  # Drift guard: quadlet-forbidden.txt intentionally no longer forbids
+  # ^AddCapability= (a minimal set is required), so an EXTRA cap line would
+  # otherwise slip past both lists. Pin the count to exactly one — the required
+  # exact-match (quadlet-required.txt) guarantees that one line is the sanctioned set.
+  local addcap_n; addcap_n="$(grep -cE '^AddCapability=' "$stripped")"
+  [[ "$addcap_n" == "1" ]] \
+    || { err "quadlet: $addcap_n AddCapability= line(s); want exactly 1 (the pinned set)"; fail=1; }
   rm -f "$stripped"
   return "$fail"
 }
