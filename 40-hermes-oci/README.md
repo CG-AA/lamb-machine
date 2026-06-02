@@ -54,6 +54,7 @@ read-only rootfs, and cgroup CPU/memory/PID limits.
 | [`assets/hermes.container.tmpl`](assets/hermes.container.tmpl) | The hardened rootless Quadlet unit. |
 | [`assets/nftables-hermes.tmpl`](assets/nftables-hermes.tmpl) | Egress firewall (output hook, scoped by the runtime UID). |
 | [`assets/config.yaml.tmpl`](assets/config.yaml.tmpl) | `~/.hermes/config.yaml` — `terminal.backend: local`, no other-backend keys. |
+| [`assets/hermesctl.tmpl`](assets/hermesctl.tmpl) | Generated `/usr/local/bin/hermesctl` — day-2 operator wrapper (see [Operating it](#operating-it)). |
 | [`lib/common.sh`](lib/common.sh) | Logging, dry-run runner, file writer (vendored from `00-provision`). |
 
 ## Prerequisites (manual, one-time)
@@ -82,7 +83,7 @@ sudo ./deploy.sh down           # stop + disable the service (REMOVE_NFT=1 also 
 ```
 
 Single steps for inspection/manual use:
-`preflight | user | podman | image | config | quadlet | nft | enable`.
+`preflight | user | podman | image | config | quadlet | nft | enable | hermesctl`.
 
 Authoring-time validation (no VM, no root, no secrets needed):
 
@@ -100,6 +101,53 @@ external tools (`shellcheck`, `nft`, `python3`) warn-and-skip by default;
 
 After a successful `image` step, **pin the digest** it prints into
 `config.sh`'s `HERMES_IMAGE` so restarts can't drift.
+
+## Operating it
+
+This is **not** a normal host install — Hermes runs as a rootless Podman container
+owned by the system user `hermes` under `systemctl --user`, and the Hermes CLI lives
+*inside* the container. `deploy.sh all` installs **`/usr/local/bin/hermesctl`** so you
+don't have to type `sudo -u hermes env --chdir=/ XDG_RUNTIME_DIR=… podman exec …` by
+hand. Run it as your normal admin user — it self-elevates via `sudo` (so every
+privileged path is gated on sudo rights).
+
+```bash
+hermesctl status            # in-container Hermes CLI — and proof the container is up
+hermesctl logs              # Hermes's own application log (the CLI's `logs`)
+hermesctl model ...         # any Hermes CLI subcommand passes through
+hermesctl restart           # restart | start | stop the systemd --user service
+hermesctl journal -f        # the host systemd/container journal for the unit (sudo)
+hermesctl help
+```
+
+**Contract:** `restart`, `start`, `stop`, `journal`, `help` are handled by the wrapper;
+**everything else is forwarded** to the in-container `hermes` CLI, so it feels like a
+local install. Two different "logs": `hermesctl logs` = Hermes's *app log*;
+`hermesctl journal` = the *systemd journal* on the host.
+
+**Change config** (model, etc.): edit `config.sh`/`secrets.env`, re-render, restart:
+
+```bash
+sudo DATA_DIR=<data-dir> ./deploy.sh config --yes   # re-renders config.yaml + .env (asserts backend=local)
+hermesctl restart
+```
+
+**Lifecycle** stays in `deploy.sh`: `sudo ./deploy.sh verify --yes` (post-deploy checks),
+`sudo ./deploy.sh down` (stop/disable; also removes the wrapper). To get a **shell inside
+the jail** (debugging only — not a wrapper verb):
+
+```bash
+sudo -u hermes env --chdir=/ XDG_RUNTIME_DIR=/run/user/$(id -u hermes) podman exec -it hermes /bin/sh
+```
+
+| Thing | Where |
+|------|------|
+| service | `hermes.service` (user unit of `hermes`) |
+| container | `hermes` (rootless podman) |
+| data dir | host `DATA_DIR` → `/opt/data` in the container |
+| config / secrets | `<data-dir>/config.yaml`, `<data-dir>/.env` (mode 600) |
+| Quadlet unit | `~hermes/.config/containers/systemd/hermes.container` |
+| egress firewall | `/etc/nftables.d/40-hermes.nft` |
 
 ## Safety model
 

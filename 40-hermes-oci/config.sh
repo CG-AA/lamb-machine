@@ -17,14 +17,14 @@ DATA_DIR="${DATA_DIR:-}"
 # --- image ---------------------------------------------------------------
 # PIN BY DIGEST in production: deploy.sh's `image` step pulls, then rewrites
 # this to nousresearch/hermes-agent@sha256:... so restarts can't drift.
-HERMES_IMAGE="${HERMES_IMAGE:-docker.io/nousresearch/hermes-agent:latest}"
+HERMES_IMAGE="${HERMES_IMAGE:-docker.io/nousresearch/hermes-agent@sha256:3380770368adc29c4af681f6a55e2de19439ccc1e59fb3e742588729910f6671}"
 # Container subcommand. `gateway run` = the persistent messaging gateway.
 HERMES_RUN_CMD="${HERMES_RUN_CMD:-gateway run}"
 
 # --- LLM (remote API only — see README; no local model on free-tier ARM) -
 # provider: auto | openrouter | nous | anthropic | openai | gemini | custom ...
 LLM_PROVIDER="${LLM_PROVIDER:-openrouter}"
-LLM_MODEL="${LLM_MODEL:-}"        # e.g. anthropic/claude-opus-4.6 ; empty => Hermes default
+LLM_MODEL="${LLM_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}"  # OpenRouter slug; override in env, or set to a different model
 LLM_BASE_URL="${LLM_BASE_URL:-}"  # optional; only for custom/self-hosted endpoints
 
 # --- resource limits (sized for a SHARED VM: leave headroom for neighbors) -

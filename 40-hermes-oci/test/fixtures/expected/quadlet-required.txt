@@ -13,8 +13,11 @@
 ^Tmpfs=/run:
 ^Tmpfs=/workspace:
 
-# Hardening — caps + privilege
+# Hardening — caps + privilege. DropCapability=all, then add back ONLY the
+# exact minimal set the image's s6 init needs to drop to uid 10000 + own
+# /opt/data. Pinned exactly so drift toward broader caps fails the suite.
 ^DropCapability=all$
+^AddCapability=CHOWN DAC_OVERRIDE FOWNER SETGID SETUID$
 ^NoNewPrivileges=true$
 
 # Hardening — resource limits

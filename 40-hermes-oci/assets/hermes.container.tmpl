@@ -26,8 +26,14 @@ Tmpfs=/workspace:rw,nosuid,nodev,size=1g
 # it copies /etc into a tmpfs instead of writing the real root.
 Environment=S6_READ_ONLY_ROOT=1
 
-# --- privileges: drop everything, gain nothing ---
+# --- privileges: drop everything, then add back only what the image's init
+# legitimately needs to DROP privileges to its unprivileged app user (uid 10000)
+# and own its data dir: s6-applyuidgid needs SETGID/SETUID (setgroups/setgid/
+# setuid), and the entrypoint chowns /opt/data (CHOWN + DAC_OVERRIDE/FOWNER).
+# This is rootless, so container-root is already an unprivileged host uid (999)
+# and these caps are confined to the user namespace — they grant no host power.
 DropCapability=all
+AddCapability=CHOWN DAC_OVERRIDE FOWNER SETGID SETUID
 NoNewPrivileges=true
 # No UserNS= line on purpose. Rootless Podman ALREADY maps the container's
 # users (incl. its internal root and UID 10000) into hermes's subuid range, so

@@ -47,6 +47,13 @@ _check_render_all() {
     "MEM_MAX=2g" "CPUS=2" "PIDS_MAX=512" "SHM_SIZE=256m" \
     "PUBLISH_PORT_LINE=# (API not published — fixture)" \
     > "$out/hermes.container" || { err "render hermes.container.tmpl failed"; return 1; }
+
+  render "$ASSETS/hermesctl.tmpl" \
+    "HERMES_USER=hermes" \
+    "HERMES_UID=10001" \
+    "SERVICE_NAME=hermes.service" \
+    "CONTAINER=hermes" \
+    > "$out/hermesctl" || { err "render hermesctl.tmpl failed"; return 1; }
 }
 
 # Grep the rendered Quadlet against required/forbidden pattern lists. Each
@@ -167,6 +174,13 @@ step_check() {
   assert_backend_locked "$tmp" || { err "assert_backend_locked: failed"; ((fail++)); }
   # 3c. Quadlet — regex assertions (no upstream standalone linter)
   _check_quadlet "$tmp/hermes.container" || ((fail++))
+  # 3d. hermesctl wrapper — syntax + lint the RENDERED file (the .tmpl has @@tokens,
+  # so it's invalid shell pre-render; never add it to the static shellcheck list).
+  bash -n "$tmp/hermesctl" || { err "bash -n: rendered hermesctl"; ((fail++)); }
+  if have_cmd shellcheck; then
+    shellcheck --severity=warning "$tmp/hermesctl" \
+      || { err "shellcheck: rendered hermesctl"; ((fail++)); }
+  fi
 
   # 4. Secrets validator behavior
   _check_secrets_fixtures || ((fail++))
