@@ -16,6 +16,23 @@ Lower layers are the foundation; higher layers assume the ones below exist. You 
 machine by walking up the stack. (`40-hermes-oci` is the exception — it targets a *different*
 machine, a cloud VM, and assumes none of `00`–`30`; the number just sorts it last.)
 
+## Quick start
+
+`./lamb` is the single entry point — it forwards to each layer's own script, so
+flags and the dry-run/`--yes` safety semantics are unchanged. **Every destructive
+op is dry-run by default; add `--yes` to execute.**
+
+```
+./lamb help                        # the cheat sheet (all layers + common commands)
+./lamb provision fresh             # preview a full wipe + build (dry-run, no root)
+sudo ./lamb provision fresh --yes  # execute it
+./lamb hermes check                # validate the hermes config locally (no root/VM)
+sudo ./lamb hermes all --yes       # deploy the hermes sandbox
+```
+
+Run `./lamb <layer> --help` for a layer's full command list; see each layer's
+`README.md` for the details and safety model.
+
 ## Why start at layer 0
 
 The disk layout — an encrypted (LUKS2) btrfs filesystem with a deliberate **multi-distro

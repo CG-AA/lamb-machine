@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#
+# lamb — one entry point for the lamb-machine layers.
+#
+# Pure bash, zero deps (works on a bare Ubuntu live USB, like the layers it
+# wraps). A thin pass-through: the first token picks a layer, everything after
+# is forwarded verbatim to that layer's own script — so per-layer --help, flags,
+# and the dry-run/--yes safety semantics all behave exactly as before. `lamb`
+# never injects sudo and never changes a default; it's just a shorter, single,
+# discoverable path. Run `./lamb help` for the cheat sheet.
+#
+set -Eeuo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+cheat_sheet() {
+  cat <<'EOF'
+lamb — provision and personalize my machines, from bare metal, in layers.
+Every destructive op is dry-run by default; add --yes to execute.
+
+Layers:
+  provision  (00)  disk -> LUKS2 -> btrfs subvolumes      [implemented]
+  bootstrap  (10)  OS install, bootloader, packages       [planned]
+  dotfiles   (20)  shell, git, editor via chezmoi         [planned]
+  desktop    (30)  GNOME settings + extensions            [planned]
+  hermes     (40)  agent in a hardened sandbox            [implemented; OCI ARM64 VM]
+
+Common commands:
+  ./lamb provision fresh                 preview a full wipe + build (dry-run)
+  sudo ./lamb provision fresh --yes      execute it
+  sudo ./lamb provision reinstall --yes  reinstall OS, keep `preserve` subvols
+  ./lamb hermes check                    validate config locally (no root/VM)
+  sudo ./lamb hermes all --yes           deploy the sandbox
+  sudo ./lamb hermes verify              post-deploy checks
+  sudo ./lamb hermes down --yes          tear it down
+
+  ./lamb <layer> --help                  full command list for a layer
+EOF
+}
+
+planned() {  # $1 = name, $2 = dir
+  printf '%s is a placeholder (planned) — see %s/README.md\n' "$1" "$2"
+}
+
+main() {
+  local layer="${1:-help}"
+  case "$layer" in
+    help|-h|--help) cheat_sheet; exit 0 ;;
+  esac
+  shift || true
+
+  case "$layer" in
+    provision|00|00-provision) exec "$HERE/00-provision/provision.sh" "$@" ;;
+    hermes|40|40-hermes-oci)   exec "$HERE/40-hermes-oci/deploy.sh" "$@" ;;
+    bootstrap|10|10-bootstrap) planned bootstrap 10-bootstrap; exit 0 ;;
+    dotfiles|20|20-dotfiles)   planned dotfiles  20-dotfiles;  exit 0 ;;
+    desktop|30|30-desktop)     planned desktop   30-desktop;   exit 0 ;;
+    *)
+      printf 'lamb: unknown layer %q (try: provision, hermes)\n\n' "$layer" >&2
+      cheat_sheet >&2
+      exit 1 ;;
+  esac
+}
+
+main "$@"
